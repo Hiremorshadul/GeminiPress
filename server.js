@@ -167,5 +167,8 @@ app.post("/api/chat", async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port", PORT));
+const port = process.env.PORT || 3000; // use Hostinger's port if provided
+
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+});
