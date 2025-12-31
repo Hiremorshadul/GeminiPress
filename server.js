@@ -1,9 +1,7 @@
 import express from "express";
-import dotenv from "dotenv";
+import "dotenv/config";
 import basicAuth from "basic-auth";
 import { GoogleGenAI } from "@google/genai";
-
-dotenv.config();
 
 const {
     GEMINI_API_KEY,
@@ -84,7 +82,7 @@ function wpAuthHeader() {
 
 // WordPress tool: create draft post
 async function wpCreateDraftPost({ title, content }) {
-    const url = `${WP_BASE_URL.replace(/\\/$ /, "")}/wp-json/wp/v2/posts`;
+    const url = `${WP_BASE_URL.replace(/\/$/, "")}/wp-json/wp/v2/posts`;
     const resp = await fetch(url, {
         method: "POST",
         headers: {
