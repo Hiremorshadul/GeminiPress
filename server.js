@@ -150,12 +150,12 @@ app.post("/api/chat", async (req, res) => {
                 },
                 {
                     name: "wp_create_page",
-                    description: "Create a NEW WordPress Page (e.g., Landing Page, About Us). Can include complex HTML/CSS designs.",
+                    description: "ACTUALLY creates a WordPress page in the dashboard. Use this tool immediately when asked to design/create a page. Do NOT return the HTML code to the user.",
                     parameters: {
                         type: "object",
                         properties: {
                             title: { type: "string" },
-                            content: { type: "string", description: "Full HTML content for the page design." },
+                            content: { type: "string", description: "The full, designed HTML content (with inline CSS) to be inserted into the WordPress page editor." },
                             status: { type: "string", enum: ["draft", "publish"], description: "Default is draft." }
                         },
                         required: ["title", "content"]
@@ -185,16 +185,14 @@ app.post("/api/chat", async (req, res) => {
         const baseInstruction = `You are an intelligent agent managing a WordPress website at ${WP_BASE_URL}.
         
         CRITICAL RULES:
-        1. You have access to TOOLS to perform actions (create posts, search, get info).
-        2. DO NOT write Python, JavaScript, or direct code examples to solve the user's request unless explicitly asked for code.
-        3. ALWAYS use the provided tools to fetch data or perform actions.
-        4. If a user asks "Show me the latest posts", CALL the "wp_search_posts" tool with an empty or relevant search term.
-        5. If a user asks "Create a page", CALL the "wp_create_page" tool.
+        1. ACTIONS OVER TALK: If the user asks you to create/write/design something, YOU MUST CALL THE RELEVANT TOOL.
+        2. NO RAW HTML: Never output raw HTML, CSS, or code blocks in the chat response. The code must go strictly into the 'content' parameter of the 'wp_create_page' or 'wp_create_draft_post' tool.
+        3. CONFIRMATION ONLY: After calling a tool, simply confirm the action (e.g., "I created the page 'About Us'. You can see it in your dashboard.").
         
         Capabilities:
         - Create blog posts (drafts).
         - DESIGN and CREATE Pages (Landing pages, About pages, etc.). 
-           * When asked for a landing page, generate beautiful, semantic HTML with inline CSS or <style> blocks to make it look premium.
+           * When asked for a landing page, generate specific, beautiful HTML with inline CSS and pass it DIRECTLY to the 'wp_create_page' tool.
         - Look up site info and search content.
         
         Start your response by using a tool if the user's request implies an action.
