@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeminiPress - AI WordPress Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f1115;
+            --chat-bg: #181a1f;
+            --primary-gradient: linear-gradient(135deg, #4daafc 0%, #9aa0f6 100%);
+            --user-msg-bg: #2b2d31;
+            --ai-msg-bg: #1e2025;
+            --text-color: #e3e3e3;
+            --accent-color: #4daafc;
+            --border-color: #2f3336;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 17, 21, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+        .logo {
+            font-weight: 600;
+            font-size: 1.5rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        .status {
+            font-size: 0.85rem;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #22c55e;
+        }
+
+        /* Main Chat Area */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        #chat-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            scroll-behavior: smooth;
+        }
+        
+        .welcome-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            width: 100%;
+            padding: 20px;
+            pointer-events: none;
+        }
+        .welcome-screen h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #fff, #aaa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .welcome-screen p { color: #888; margin-bottom: 30px; font-size: 1.1rem; }
+        
+        .examples {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            pointer-events: auto;
+        }
+        .example-btn {
+            background: var(--chat-bg);
+            border: 1px solid var(--border-color);
+            color: #ccc;
+            padding: 12px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        .example-btn:hover {
+            border-color: var(--accent-color);
+            background: #1f2229;
+            color: #fff;
+        }
+
+        /* Messages */
+        .message {
+            display: flex;
+            gap: 15px;
+            animation: fadeIn 0.3s ease;
+            max-width: 85%;
+        }
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        .ai-avatar { background: var(--primary-gradient); color: #fff; }
+        .user-avatar { background: #333; color: #ccc; }
+
+        .bubble {
+            padding: 12px 18px;
+            border-radius: 18px;
+            line-height: 1.6;
+            font-size: 1rem;
+            position: relative;
+            word-wrap: break-word;
+        }
+        .user .bubble {
+            background: var(--user-msg-bg);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .ai .bubble {
+            background: var(--ai-msg-bg);
+            color: #ddd;
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* Markdown Styles */
+        .bubble code {
+            background: rgba(0,0,0,0.3);
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .bubble pre {
+            background: #111;
+            padding: 10px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .bubble p { margin-bottom: 10px; }
+        .bubble p:last-child { margin-bottom: 0; }
+        .bubble a { color: var(--accent-color); }
+
+        /* Input Area */
+        .input-area {
+            padding: 20px;
+            background: var(--bg-color);
+            border-top: 1px solid var(--border-color);
+        }
+        .input-container {
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            background: var(--chat-bg);
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            transition: border-color 0.2s;
+            display: flex;
+            align-items: flex-end;
+            padding: 10px;
+        }
+        .input-container:focus-within {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 1px rgba(77, 170, 252, 0.2);
+        }
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 10px;
+            resize: none;
+            max-height: 200px;
+            min-height: 24px;
+            outline: none;
+        }
+        button#send-btn {
+            background: var(--primary-gradient);
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 10px;
+            transition: opacity 0.2s;
+        }
+        button#send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .typing-indicator { font-style: italic; color: #666; font-size: 0.9rem; margin-left: 50px; margin-bottom: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">GeminiPress</div>
+        <div class="status">
+            <div class="status-dot"></div>
+            Online
+        </div>
+    </header>
+
+    <main>
+        <div class="welcome-screen" id="welcome">
+            <h1>Hello, Admin</h1>
+            <p>How can I help you manage your WordPress site today?</p>
+            <div class="examples">
+                <div class="example-btn" onclick="fillInput('Draft a post about AI trends')">Draft AI Post</div>
+                <div class="example-btn" onclick="fillInput('Create a landing page for a coffee shop')">New Landing Page</div>
+                <div class="example-btn" onclick="fillInput('Show me the latest posts')">List Posts</div>
+            </div>
+        </div>
+
+        <div id="chat-container"></div>
+        <div class="typing-indicator" id="loading">Gemini is thinking...</div>
+    </main>
+
+    <div class="input-area">
+        <div class="input-container">
+            <textarea id="msg" placeholder="Message GeminiPress..." rows="1" oninput="autoResize(this)"></textarea>
+            <button id="send-btn" onclick="send()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const msgInput = document.getElementById('msg');
+        const welcomeScreen = document.getElementById('welcome');
+        const loadingIndicator = document.getElementById('loading');
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+        }
+
+        function fillInput(text) {
+            msgInput.value = text;
+            autoResize(msgInput);
+            msgInput.focus();
+        }
+
+        function addMessage(text, isUser) {
+            welcomeScreen.style.display = 'none';
+            
+            const div = document.createElement('div');
+            div.className = `message ${isUser ? 'user' : 'ai'}`;
+            
+            const avatar = document.createElement('div');
+            avatar.className = `avatar ${isUser ? 'user-avatar' : 'ai-avatar'}`;
+            avatar.innerHTML = isUser ? 'U' : '✨';
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            if (!isUser) {
+                bubble.innerHTML = marked.parse(text);
+            } else {
+                bubble.textContent = text;
+            }
+            
+            div.appendChild(avatar);
+            div.appendChild(bubble);
+            chatContainer.appendChild(div);
+            
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function send() {
+            const text = msgInput.value.trim();
+            if (!text) return;
+
+            addMessage(text, true);
+            msgInput.value = "";
+            msgInput.style.height = 'auto';
+            loadingIndicator.style.display = 'block';
+
+            try {
+                const r = await fetch("/api/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await r.json();
+                
+                loadingIndicator.style.display = 'none';
+                if (!r.ok) {
+                    addMessage("Error: " + (data.error || JSON.stringify(data)), false);
+                } else {
+                    addMessage(data.reply, false);
+                }
+            } catch (err) {
+                loadingIndicator.style.display = 'none';
+                addMessage("Network Error: " + err.message, false);
+            }
+        }
+        
+        msgInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+            }
+        });
+    </script>
+</body>
+</html>

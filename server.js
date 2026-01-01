@@ -2,6 +2,11 @@ import express from "express";
 import "dotenv/config";
 import basicAuth from "basic-auth";
 import { GoogleGenAI } from "@google/genai";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const {
     GEMINI_API_KEY,
@@ -29,49 +34,12 @@ app.use((req, res, next) => {
     next();
 });
 
-// 2) Simple chat UI
-app.get("/", (req, res) => {
-    res.type("html").send(`
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>WordPress Gemini Control</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 16px; }
-    textarea { width: 100%; height: 90px; }
-    #log { white-space: pre-wrap; border: 1px solid #ddd; padding: 12px; min-height: 260px; margin-top: 12px; }
-    button { padding: 10px 14px; margin-top: 10px; }
-  </style>
-</head>
-<body>
-  <h2>Gemini → WordPress (Draft-safe)</h2>
-  <p>Try: “Create a draft post titled Test with 2 paragraphs.”</p>
-  <textarea id="msg" placeholder="Type message..."></textarea>
-  <br />
-  <button onclick="send()">Send</button>
-  <div id="log"></div>
+// 2) Serve static frontend
+app.use(express.static(path.join(__dirname, "public")));
 
-  <script>
-    const log = (t) => document.getElementById('log').textContent += t + "\\n\\n";
-    async function send() {
-      const text = document.getElementById('msg').value.trim();
-      if (!text) return;
-      log("YOU: " + text);
-      document.getElementById('msg').value = "";
-      const r = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text })
-      });
-      const data = await r.json();
-      if (!r.ok) log("ERROR: " + JSON.stringify(data, null, 2));
-      else log("AI: " + data.reply);
-    }
-  </script>
-</body>
-</html>
-  `);
+// Fallback to index.html for SPA feel (though this is single page)
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // Helper: WP Basic Auth header using Application Passwords (HTTPS)
