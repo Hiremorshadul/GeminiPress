@@ -213,7 +213,8 @@ app.post("/api/chat", async (req, res) => {
         }];
 
         // System instruction to give identity
-        const systemInstruction = `You are an intelligent assistant managing a WordPress website at ${WP_BASE_URL}.
+        // We use a base instruction + any user custom prompt from environment
+        const baseInstruction = `You are an intelligent assistant managing a WordPress website at ${WP_BASE_URL}.
         Capabilities:
         1. Create blog posts (drafts).
         2. DESIGN and CREATE Pages (Landing pages, About pages, etc.). 
@@ -221,6 +222,10 @@ app.post("/api/chat", async (req, res) => {
         3. Look up site info and search content.
         
         Always be helpful, concise, and proactive with design ideas.`;
+
+        const systemInstruction = process.env.CUSTOM_PROMPT
+            ? `${baseInstruction}\n\nUSER CUSTOM INSTRUCTIONS:\n${process.env.CUSTOM_PROMPT}`
+            : baseInstruction;
 
         // Ask Gemini
         const model = "gemini-2.0-flash";
