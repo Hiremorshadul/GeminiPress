@@ -130,6 +130,34 @@ async function wpSearchPosts({ search }) {
     return data.map(p => ({ id: p.id, title: p.title.rendered, link: p.link }));
 }
 
+// Helper: Create/Publish a Page (for handling landing pages)
+async function wpCreatePage({ title, content, status = "draft" }) {
+    const url = `${WP_BASE_URL.replace(/\/$/, "")}/wp-json/wp/v2/pages`;
+    const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+            ...wpAuthHeader(),
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            title,
+            content,
+            status
+        })
+    });
+
+    const data = await resp.json();
+    if (!resp.ok) {
+        throw new Error(`WP error ${resp.status}: ${JSON.stringify(data)}`);
+    }
+
+    return {
+        id: data.id,
+        link: data.link,
+        status: data.status
+    };
+}
+
 // 3) Chat endpoint: Gemini function calling → run WP tools → respond
 app.post("/api/chat", async (req, res) => {
     try {
@@ -148,6 +176,19 @@ app.post("/api/chat", async (req, res) => {
                         properties: {
                             title: { type: "string" },
                             content: { type: "string", description: "HTML content is allowed." }
+                        },
+                        required: ["title", "content"]
+                    }
+                },
+                {
+                    name: "wp_create_page",
+                    description: "Create a NEW WordPress Page (e.g., Landing Page, About Us). Can include complex HTML/CSS designs.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            title: { type: "string" },
+                            content: { type: "string", description: "Full HTML content for the page design." },
+                            status: { type: "string", enum: ["draft", "publish"], description: "Default is draft." }
                         },
                         required: ["title", "content"]
                     }
@@ -172,15 +213,17 @@ app.post("/api/chat", async (req, res) => {
         }];
 
         // System instruction to give identity
-        // Note: Gemini 1.5 Pro/Flash supports systemInstruction. 
-        // If using older library versions or models, you might prepend this to the prompt.
-        // But the official @google/genai SDK v1.0+ supports it.
         const systemInstruction = `You are an intelligent assistant managing a WordPress website at ${WP_BASE_URL}.
-        You can create drafts, look up site info, and search posts. 
-        Always be helpful and concise.`;
+        Capabilities:
+        1. Create blog posts (drafts).
+        2. DESIGN and CREATE Pages (Landing pages, About pages, etc.). 
+           - When asked for a landing page, generate beautiful, semantic HTML with inline CSS or <style> blocks to make it look premium.
+        3. Look up site info and search content.
+        
+        Always be helpful, concise, and proactive with design ideas.`;
 
         // Ask Gemini
-        const model = "gemini-2.0-flash"; // you can change later
+        const model = "gemini-2.0-flash";
         const first = await ai.models.generateContent({
             model,
             config: { systemInstruction },
@@ -196,6 +239,8 @@ app.post("/api/chat", async (req, res) => {
             let result;
             if (call.name === "wp_create_draft_post") {
                 result = await wpCreateDraftPost(call.args);
+            } else if (call.name === "wp_create_page") {
+                result = await wpCreatePage(call.args);
             } else if (call.name === "wp_get_site_info") {
                 result = await wpGetSiteInfo();
             } else if (call.name === "wp_search_posts") {
