@@ -108,6 +108,28 @@ async function wpCreateDraftPost({ title, content }) {
     };
 }
 
+// Helper: Get site basic info
+async function wpGetSiteInfo() {
+    const url = `${WP_BASE_URL.replace(/\/$/, "")}/wp-json`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error("Failed to fetch site info");
+    const data = await resp.json();
+    return {
+        name: data.name,
+        description: data.description,
+        url: data.url
+    };
+}
+
+// Helper: Search posts
+async function wpSearchPosts({ search }) {
+    const url = `${WP_BASE_URL.replace(/\/$/, "")}/wp-json/wp/v2/posts?search=${encodeURIComponent(search)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error("Search failed");
+    const data = await resp.json();
+    return data.map(p => ({ id: p.id, title: p.title.rendered, link: p.link }));
+}
+
 // 3) Chat endpoint: Gemini function calling → run WP tools → respond
 app.post("/api/chat", async (req, res) => {
     try {
@@ -115,39 +137,77 @@ app.post("/api/chat", async (req, res) => {
 
         const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-        // Function declaration (tool)
+        // Function declarations (tools)
         const tools = [{
-            functionDeclarations: [{
-                name: "wp_create_draft_post",
-                description: "Create a NEW WordPress blog post as a draft (safe).",
-                parameters: {
-                    type: "object",
-                    properties: {
-                        title: { type: "string" },
-                        content: { type: "string", description: "HTML content is allowed." }
-                    },
-                    required: ["title", "content"]
+            functionDeclarations: [
+                {
+                    name: "wp_create_draft_post",
+                    description: "Create a NEW WordPress blog post as a draft (safe).",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            title: { type: "string" },
+                            content: { type: "string", description: "HTML content is allowed." }
+                        },
+                        required: ["title", "content"]
+                    }
+                },
+                {
+                    name: "wp_get_site_info",
+                    description: "Get general information about this WordPress site (name, tagline, URL).",
+                    parameters: { type: "object", properties: {} }
+                },
+                {
+                    name: "wp_search_posts",
+                    description: "Search existing posts on the website by keyword.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            search: { type: "string", description: "Keywords to search for." }
+                        },
+                        required: ["search"]
+                    }
                 }
-            }]
+            ]
         }];
+
+        // System instruction to give identity
+        // Note: Gemini 1.5 Pro/Flash supports systemInstruction. 
+        // If using older library versions or models, you might prepend this to the prompt.
+        // But the official @google/genai SDK v1.0+ supports it.
+        const systemInstruction = `You are an intelligent assistant managing a WordPress website at ${WP_BASE_URL}.
+        You can create drafts, look up site info, and search posts. 
+        Always be helpful and concise.`;
 
         // Ask Gemini
         const model = "gemini-2.0-flash"; // you can change later
         const first = await ai.models.generateContent({
             model,
+            config: { systemInstruction },
             contents: [{ role: "user", parts: [{ text: userMessage }] }],
             tools
         });
 
         // If Gemini returns a function call, run it, then send result back
-        const call = first?.candidates?.[0]?.content?.parts?.find(p => p.functionCall)?.functionCall;
+        const part = first?.candidates?.[0]?.content?.parts?.find(p => p.functionCall);
+        const call = part?.functionCall;
 
-        if (call?.name === "wp_create_draft_post") {
-            const result = await wpCreateDraftPost(call.args);
+        if (call) {
+            let result;
+            if (call.name === "wp_create_draft_post") {
+                result = await wpCreateDraftPost(call.args);
+            } else if (call.name === "wp_get_site_info") {
+                result = await wpGetSiteInfo();
+            } else if (call.name === "wp_search_posts") {
+                result = await wpSearchPosts(call.args);
+            } else {
+                result = { error: "Unknown function" };
+            }
 
             // IMPORTANT: function response must come immediately after call
             const second = await ai.models.generateContent({
                 model,
+                config: { systemInstruction },
                 contents: [
                     { role: "user", parts: [{ text: userMessage }] },
                     { role: "model", parts: [{ functionCall: call }] },
@@ -155,7 +215,7 @@ app.post("/api/chat", async (req, res) => {
                 ]
             });
 
-            const replyText = second?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join("\n") || `Draft created: ${result.link}`;
+            const replyText = second?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join("\n") || `Action ${call.name} completed.`;
             return res.json({ reply: replyText });
         }
 
